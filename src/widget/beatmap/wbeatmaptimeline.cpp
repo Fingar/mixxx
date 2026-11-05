@@ -32,16 +32,30 @@ void WBeatmapTimeline::paintEvent(QPaintEvent* event) {
     const auto waveformCenter = waveformTop + waveformHeight / 2.0;
 
     // Draw the time ruler.
-    painter.setPen(QColor(180, 180, 180));
+    const auto duration = m_pTrack->getDuration();
+    constexpr auto minTickSpacing = 80.0;
+
+    auto tickInterval = 1;
+    while (tickInterval * m_pixelsPerSecond < minTickSpacing) {
+        tickInterval *= (tickInterval == 1 || tickInterval == 5) ? 5 : 2;
+    }
 
     const auto visibleSeconds = width() / m_pixelsPerSecond;
-    const auto startSecond = static_cast<int>(std::floor(m_scrollSeconds));
-    const auto endSecond =
-            static_cast<int>(std::ceil(m_scrollSeconds + visibleSeconds));
+    const auto firstTick = static_cast<int>(
+            std::ceil(m_scrollSeconds / tickInterval)) * tickInterval;
 
-    for (auto second = startSecond; second <= endSecond; ++second) {
+    const auto endSecond = static_cast<int>(
+            std::ceil(m_scrollSeconds + visibleSeconds));
+
+    for (auto second = firstTick; second <= endSecond; second += tickInterval) {
         const auto x = static_cast<int>(
                 (second - m_scrollSeconds) * m_pixelsPerSecond);
+
+        const auto isOutsideTrack = second < 0 || second > duration;
+
+        painter.setPen(isOutsideTrack
+                        ? QColor(100, 100, 100)
+                        : QColor(180, 180, 180));
 
         painter.drawLine(x, 0, x, 15);
 
@@ -56,77 +70,86 @@ void WBeatmapTimeline::paintEvent(QPaintEvent* event) {
         painter.drawText(x + 4, 30, timeLabel);
     }
 
-    // Get the track's waveform.
-    const auto pWaveform = m_pTrack->getWaveform();
-
-    if (!pWaveform) {
-        painter.setPen(Qt::white);
-        painter.drawText(10, waveformCenter, tr("Waveform not loaded"));
-        return;
-    }
-
-    const auto duration = m_pTrack->getDuration();
-    const auto dataSize = std::min(
-            pWaveform->getDataSize(),
-            pWaveform->getCompletion());
-
-    if (duration <= 0.0 || dataSize < 2 || waveformHeight <= 0) {
-        return;
-    }
-
     // Draw the center line.
     painter.setPen(QColor(75, 75, 75));
     painter.drawLine(
             QPointF(0, waveformCenter),
             QPointF(width(), waveformCenter));
 
-    // Draw waveform.
-    painter.setPen(QColor(70, 180, 220));
+    // Get the track's waveform.
+    const auto pWaveform = m_pTrack->getWaveform();
 
-    for (auto x = 0; x < width(); ++x) {
-        const auto timeStart =
-                m_scrollSeconds + x / m_pixelsPerSecond;
+    if (pWaveform && duration > 0.0 && waveformHeight > 0) {
+        const auto dataSize = std::min(
+                pWaveform->getDataSize(),
+                pWaveform->getCompletion());
 
-        const auto timeEnd =
-                m_scrollSeconds + (x + 1) / m_pixelsPerSecond;
+        if (dataSize >= 2) {
+            // Draw waveform.
+            painter.setPen(QColor(70, 180, 220));
 
-        if (timeEnd <= 0.0) {
-            continue;
+            for (auto x = 0; x < width(); ++x) {
+                const auto timeStart =
+                        m_scrollSeconds + x / m_pixelsPerSecond;
+
+                const auto timeEnd =
+                        m_scrollSeconds + (x + 1) / m_pixelsPerSecond;
+
+                if (timeEnd <= 0.0) {
+                    continue;
+                }
+
+                if (timeStart >= duration) {
+                    break;
+                }
+
+                // Convert timeline time to waveform indices.
+                auto indexStart = static_cast<int>(
+                        std::max(0.0, timeStart) / duration * dataSize);
+
+                auto indexEnd = static_cast<int>(
+                        std::min(duration, timeEnd) / duration * dataSize);
+
+                // Align indices to stereo pairs.
+                indexStart = std::clamp(indexStart / 2 * 2, 0, dataSize - 2);
+                indexEnd = std::clamp(indexEnd / 2 * 2, 0, dataSize - 2);
+
+                // Find the maximum amplitude for this pixel.
+                auto amplitude = 0;
+
+                for (auto i = indexStart; i <= indexEnd; i += 2) {
+                    amplitude = std::max(amplitude,
+                            static_cast<int>(pWaveform->getAll(i)));
+
+                    amplitude = std::max(amplitude,
+                            static_cast<int>(pWaveform->getAll(i + 1)));
+                }
+
+                const auto normalizedAmplitude = amplitude / 255.0;
+                const auto halfHeight =
+                        normalizedAmplitude * waveformHeight / 2.0;
+
+                painter.drawLine(
+                        QPointF(x, waveformCenter - halfHeight),
+                        QPointF(x, waveformCenter + halfHeight));
+            }
         }
+    } else if (!pWaveform) {
+        painter.setPen(Qt::white);
+        painter.drawText(10, waveformCenter, tr("Waveform not loaded"));
+    }
 
-        if (timeStart >= duration) {
-            break;
+    // Draw track boundaries.
+    painter.setPen(QColor(130, 130, 130));
+
+    for (const auto time : {0.0, duration}) {
+        const auto x = (time - m_scrollSeconds) * m_pixelsPerSecond;
+
+        if (x >= 0.0 && x < width()) {
+            painter.drawLine(
+                    QPointF(x, rulerHeight),
+                    QPointF(x, height()));
         }
-
-        // Convert timeline time to waveform indices.
-        auto indexStart = static_cast<int>(
-                std::max(0.0, timeStart) / duration * dataSize);
-
-        auto indexEnd = static_cast<int>(
-                std::min(duration, timeEnd) / duration * dataSize);
-
-        // Align indices to stereo pairs.
-        indexStart = std::clamp(indexStart / 2 * 2, 0, dataSize - 2);
-        indexEnd = std::clamp(indexEnd / 2 * 2, 0, dataSize - 2);
-
-        // Find the maximum amplitude for this pixel.
-        auto amplitude = 0;
-
-        for (auto i = indexStart; i <= indexEnd; i += 2) {
-            amplitude = std::max(amplitude,
-                    static_cast<int>(pWaveform->getAll(i)));
-
-            amplitude = std::max(amplitude,
-                    static_cast<int>(pWaveform->getAll(i + 1)));
-        }
-
-        const auto normalizedAmplitude = amplitude / 255.0;
-        const auto halfHeight =
-                normalizedAmplitude * waveformHeight / 2.0;
-
-        painter.drawLine(
-                QPointF(x, waveformCenter - halfHeight),
-                QPointF(x, waveformCenter + halfHeight));
     }
 }
 

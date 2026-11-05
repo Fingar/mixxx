@@ -38,8 +38,8 @@ void WBeatmapTimeline::setVisibleRange(
 
     m_pixelsPerSecond = std::clamp(
             width() / visibleDuration,
-            10.0,
-            1000.0);
+            kMinPixelsPerSecond,
+            kMaxPixelsPerSecond);
 
     m_scrollSeconds = startSeconds;
 
@@ -150,21 +150,47 @@ void WBeatmapTimeline::paintEvent(QPaintEvent* event) {
                 indexStart = std::clamp(indexStart / 2 * 2, 0, dataSize - 2);
                 indexEnd = std::clamp(indexEnd / 2 * 2, 0, dataSize - 2);
 
-                // Find the maximum amplitude for this pixel.
-                auto amplitude = 0;
+                // Average amplitude across the pixel's stereo samples to represent
+                // its overall loudness, while averaging low/mid/high frequency bands
+                // to determine its RGB color (bass = red, mids = green, highs = blue).
+                double amplitudeSum = 0.0;
+                double lowSum = 0.0;
+                double midSum = 0.0;
+                double highSum = 0.0;
+                int sampleCount = 0;
 
                 for (auto i = indexStart; i <= indexEnd; i += 2) {
-                    amplitude = std::max(amplitude,
-                            static_cast<int>(pWaveform->getAll(i)));
+                    for (auto channel = 0; channel < 2; ++channel) {
+                        const auto index = i + channel;
 
-                    amplitude = std::max(amplitude,
-                            static_cast<int>(pWaveform->getAll(i + 1)));
+                        amplitudeSum += pWaveform->getAll(index);
+                        lowSum += pWaveform->getLow(index);
+                        midSum += pWaveform->getMid(index);
+                        highSum += pWaveform->getHigh(index);
+                        ++sampleCount;
+                    }
                 }
+
+                const auto amplitude = sampleCount > 0
+                        ? amplitudeSum / sampleCount
+                        : 0.0;
+
+                // Normalize frequency bands independently of amplitude so that
+                // color represents frequency balance rather than loudness.
+                const auto maxBand = std::max({lowSum, midSum, highSum});
+
+                const auto color = maxBand > 0.0
+                        ? QColor::fromRgbF(
+                                  lowSum / maxBand,
+                                  midSum / maxBand,
+                                  highSum / maxBand)
+                        : QColor(0, 0, 0);
 
                 const auto normalizedAmplitude = amplitude / 255.0;
                 const auto halfHeight =
                         normalizedAmplitude * waveformHeight / 2.0;
 
+                painter.setPen(color);
                 painter.drawLine(
                         QPointF(x, waveformCenter - halfHeight),
                         QPointF(x, waveformCenter + halfHeight));
@@ -201,8 +227,8 @@ void WBeatmapTimeline::wheelEvent(QWheelEvent* event) {
 
         m_pixelsPerSecond = std::clamp(
             m_pixelsPerSecond * std::pow(1.2, steps),
-            10.0,
-            1000.0);
+            kMinPixelsPerSecond,
+            kMaxPixelsPerSecond);
 
         m_scrollSeconds = timeAtMouse - mouseX / m_pixelsPerSecond;
     } else {
@@ -213,6 +239,47 @@ void WBeatmapTimeline::wheelEvent(QWheelEvent* event) {
     update();
     emit visibleRangeChanged();
     event->accept();
+}
+
+void WBeatmapTimeline::mousePressEvent(QMouseEvent* event) {
+    if (event->button() == Qt::MiddleButton) {
+        m_isPanning = true;
+        m_lastPanX = event->position().x();
+        setCursor(Qt::ClosedHandCursor);
+        event->accept();
+        return;
+    }
+
+    QWidget::mousePressEvent(event);
+}
+
+void WBeatmapTimeline::mouseMoveEvent(QMouseEvent* event) {
+    if (m_isPanning) {
+        const auto x = event->position().x();
+        const auto deltaX = x - m_lastPanX;
+
+        m_scrollSeconds -= deltaX / m_pixelsPerSecond;
+        m_lastPanX = x;
+
+        update();
+        emit visibleRangeChanged();
+
+        event->accept();
+        return;
+    }
+
+    QWidget::mouseMoveEvent(event);
+}
+
+void WBeatmapTimeline::mouseReleaseEvent(QMouseEvent* event) {
+    if (event->button() == Qt::MiddleButton && m_isPanning) {
+        m_isPanning = false;
+        unsetCursor();
+        event->accept();
+        return;
+    }
+
+    QWidget::mouseReleaseEvent(event);
 }
 
 #include "moc_wbeatmaptimeline.cpp"

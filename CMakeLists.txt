@@ -1753,6 +1753,8 @@ add_library(
   src/waveform/widgets/glvsynctestwidget.cpp
   src/widget/beatmap/dlgbeatmapeditor.cpp
   src/widget/beatmap/dlgbeatmapeditor.h
+  src/widget/beatmap/wbeatmapnavigator.cpp
+  src/widget/beatmap/wbeatmapnavigator.h
   src/widget/beatmap/wbeatmaptimeline.cpp
   src/widget/beatmap/wbeatmaptimeline.h
   src/widget/controlwidgetconnection.cpp

@@ -4,15 +4,23 @@
 #include <QWidget>
 
 #include "track/track_decl.h"
+#include "waveform/waveform.h"
 
 class QPaintEvent;
 class QWheelEvent;
 
 class WBeatmapTimeline : public QWidget {
+    Q_OBJECT
+
   public:
     explicit WBeatmapTimeline(
         TrackPointer pTrack,
         QWidget* parent = nullptr);
+    double visibleStart() const;
+    double visibleEnd() const;
+    void setVisibleRange(double startSeconds, double endSeconds);
+    double trackDuration() const;
+    ConstWaveformPointer waveform() const;
 
   protected:
     void paintEvent(QPaintEvent *event) override;
@@ -22,6 +30,9 @@ class WBeatmapTimeline : public QWidget {
     TrackPointer m_pTrack;
     double m_pixelsPerSecond = 100.0;
     double m_scrollSeconds = 0.0;
+
+  signals:
+    void visibleRangeChanged();
 };
 
 #endif // MIXXX_WBEATMAPTIMELINE_H

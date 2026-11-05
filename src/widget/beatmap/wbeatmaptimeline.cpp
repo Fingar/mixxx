@@ -19,6 +19,42 @@ WBeatmapTimeline::WBeatmapTimeline(
     setMinimumHeight(200);
 }
 
+double WBeatmapTimeline::visibleStart() const {
+    return m_scrollSeconds;
+}
+
+double WBeatmapTimeline::visibleEnd() const {
+    return m_scrollSeconds + width() / m_pixelsPerSecond;
+}
+
+void WBeatmapTimeline::setVisibleRange(
+        double startSeconds,
+        double endSeconds) {
+    if (endSeconds <= startSeconds) {
+        return;
+    }
+
+    const auto visibleDuration = endSeconds - startSeconds;
+
+    m_pixelsPerSecond = std::clamp(
+            width() / visibleDuration,
+            10.0,
+            1000.0);
+
+    m_scrollSeconds = startSeconds;
+
+    update();
+    emit visibleRangeChanged();
+}
+
+double WBeatmapTimeline::trackDuration() const {
+    return m_pTrack->getDuration();
+}
+
+ConstWaveformPointer WBeatmapTimeline::waveform() const {
+    return m_pTrack->getWaveform();
+}
+
 void WBeatmapTimeline::paintEvent(QPaintEvent* event) {
     Q_UNUSED(event);
 
@@ -136,7 +172,9 @@ void WBeatmapTimeline::paintEvent(QPaintEvent* event) {
         }
     } else if (!pWaveform) {
         painter.setPen(Qt::white);
-        painter.drawText(10, waveformCenter, tr("Waveform not loaded"));
+        painter.drawText(
+            QPointF(10, waveformCenter),
+            tr("Waveform not loaded"));
     }
 
     // Draw track boundaries.
@@ -173,5 +211,8 @@ void WBeatmapTimeline::wheelEvent(QWheelEvent* event) {
     }
 
     update();
+    emit visibleRangeChanged();
     event->accept();
 }
+
+#include "moc_wbeatmaptimeline.cpp"

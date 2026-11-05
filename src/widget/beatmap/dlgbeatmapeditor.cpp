@@ -11,6 +11,7 @@
 #include "util/db/dbconnectionpooler.h"
 #include "util/db/dbconnectionpooled.h"
 #include "waveform/waveformfactory.h"
+#include "widget/beatmap/wbeatmapnavigator.h"
 #include "widget/beatmap/wbeatmaptimeline.h"
 
 DlgBeatmapEditor::DlgBeatmapEditor(
@@ -33,14 +34,18 @@ DlgBeatmapEditor::DlgBeatmapEditor(
     m_pTimeline = new WBeatmapTimeline(m_pTrack, this);
     layout->addWidget(m_pTimeline);
 
+    auto* pNavigator = new WBeatmapNavigator(m_pTimeline, this);
+    layout->addWidget(pNavigator);
+
     connect(&m_waveformWatcher,
             &QFutureWatcher<ConstWaveformPointer>::finished,
             this,
-            [this]() {
+            [this, pNavigator]() {
                 const auto pWaveform = m_waveformWatcher.result();
                 if (pWaveform) {
                     m_pTrack->setWaveform(pWaveform);
                     m_pTimeline->update();
+                    pNavigator->update();
                 }
             });
 

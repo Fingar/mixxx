@@ -1825,7 +1825,11 @@ void WTrackMenu::slotEditBeatmap() {
         return;
     }
 
-    DlgBeatmapEditor dialog(pTrack->getTitle(), this);
+    DlgBeatmapEditor dialog(
+        pTrack,
+        m_pConfig,
+        m_pLibrary->dbConnectionPool(),
+        this);
     dialog.exec();
 }
 

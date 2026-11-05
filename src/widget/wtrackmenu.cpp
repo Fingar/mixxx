@@ -7,6 +7,8 @@
 #include <QListWidget>
 #include <QModelIndex>
 #include <QVBoxLayout>
+#include <QDialog>
+#include <QLabel>
 
 #include "analyzer/analyzerscheduledtrack.h"
 #include "analyzer/analyzersilence.h"
@@ -41,6 +43,7 @@
 #include "util/parented_ptr.h"
 #include "util/qt.h"
 #include "util/widgethelper.h"
+#include "widget/beatmap/dlgbeatmapeditor.h"
 #include "widget/findonweblast.h"
 #include "widget/findonwebmenufactory.h"
 #include "widget/wcolorpickeraction.h"
@@ -579,6 +582,14 @@ void WTrackMenu::createActions() {
                 &WTrackMenu::slotReanalyzeWithVariableTempo);
     }
 
+    if (featureIsEnabled(Feature::BeatmapEditor)) {
+        m_pEditBeatmapAction = make_parented<QAction>(tr("Edit Beatmap..."), this);
+        connect(m_pEditBeatmapAction,
+                &QAction::triggered,
+                this,
+                &WTrackMenu::slotEditBeatmap);
+    }
+
     // This action is only usable when m_deckGroup is set. That is true only
     // for WTrackmenu instantiated by WTrackProperty and other deck widgets, thus
     // don't create it if a track model is set.
@@ -753,6 +764,10 @@ void WTrackMenu::setupActions() {
         m_pAnalyzeMenu->addAction(m_pReanalyzeConstBpmAction);
         m_pAnalyzeMenu->addAction(m_pReanalyzeVarBpmAction);
         addMenu(m_pAnalyzeMenu);
+    }
+
+    if (featureIsEnabled(Feature::BeatmapEditor)) {
+        addAction(m_pEditBeatmapAction);
     }
 
     // This action is created only for menus instantiated by deck widgets (e.g.
@@ -1802,6 +1817,16 @@ void WTrackMenu::slotReanalyzeWithVariableTempo() {
     AnalyzerTrack::Options options;
     options.useFixedTempo = false;
     addToAnalysis(options);
+}
+
+void WTrackMenu::slotEditBeatmap() {
+    const auto pTrack = getFirstTrackPointer();
+    if (!pTrack) {
+        return;
+    }
+
+    DlgBeatmapEditor dialog(pTrack->getTitle(), this);
+    dialog.exec();
 }
 
 void WTrackMenu::slotLockBpm() {
@@ -2958,6 +2983,8 @@ bool WTrackMenu::featureIsEnabled(Feature flag) const {
     case Feature::FileBrowser:
         return true;
     case Feature::FindOnWeb:
+        return true;
+    case Feature::BeatmapEditor:
         return true;
     case Feature::Properties:
         return m_pTrackModel->hasCapabilities(TrackModel::Capability::Properties);

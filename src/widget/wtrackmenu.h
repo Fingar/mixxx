@@ -59,11 +59,12 @@ class WTrackMenu : public QMenu {
         SelectInLibrary = 1 << 15,
         Analyze = 1 << 16,
         FindOnWeb = 1 << 17,
+        BeatmapEditor = 1 << 18,
         TrackModelFeatures = Remove | HideUnhidePurge,
         All = AutoDJ | LoadTo | Playlist | Crate | Remove | Metadata | Reset | Analyze |
                 BPM | Color | HideUnhidePurge | RemoveFromDisk | FileBrowser |
                 Properties | SearchRelated | UpdateReplayGainFromPregain | SelectInLibrary |
-                FindOnWeb
+                FindOnWeb | BeatmapEditor,
     };
     Q_DECLARE_FLAGS(Features, Feature)
 
@@ -83,7 +84,8 @@ class WTrackMenu : public QMenu {
             WTrackMenu::Feature::Properties |
             WTrackMenu::Feature::UpdateReplayGainFromPregain |
             WTrackMenu::Feature::FindOnWeb |
-            WTrackMenu::Feature::SelectInLibrary};
+            WTrackMenu::Feature::SelectInLibrary |
+            WTrackMenu::Feature::BeatmapEditor};
 
     WTrackMenu(QWidget* parent,
             UserSettingsPointer pConfig,
@@ -162,6 +164,9 @@ class WTrackMenu : public QMenu {
     void slotReanalyze();
     void slotReanalyzeWithFixedTempo();
     void slotReanalyzeWithVariableTempo();
+
+    // Beatmap Editor
+    void slotEditBeatmap();
 
     // BPM
     void slotLockBpm();
@@ -359,6 +364,9 @@ class WTrackMenu : public QMenu {
     parented_ptr<QAction> m_pReanalyzeConstBpmAction;
     parented_ptr<QAction> m_pReanalyzeVarBpmAction;
 
+    // Beatmap Editor actions
+    parented_ptr<QAction> m_pEditBeatmapAction;
+    
     // Clear track metadata actions
     parented_ptr<QAction> m_pClearBeatsAction;
     parented_ptr<QAction> m_pClearPlayCountAction;

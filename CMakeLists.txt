@@ -1751,6 +1751,8 @@ add_library(
   src/waveform/widgets/waveformwidgetabstract.cpp
   src/waveform/widgets/glwaveformwidgetabstract.cpp
   src/waveform/widgets/glvsynctestwidget.cpp
+  src/widget/beatmap/dlgbeatmapeditor.cpp
+  src/widget/beatmap/dlgbeatmapeditor.h
   src/widget/controlwidgetconnection.cpp
   src/widget/findonwebmenufactory.cpp
   src/widget/findonweblast.cpp

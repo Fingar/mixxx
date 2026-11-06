@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "library/dao/analysisdao.h"
+#include "track/beats.h"
 #include "track/track.h"
 #include "util/db/dbconnectionpooler.h"
 #include "util/db/dbconnectionpooled.h"
@@ -29,7 +30,28 @@ DlgBeatmapEditor::DlgBeatmapEditor(
 
     auto* layout = new QVBoxLayout(this);
 
-    layout->addWidget(new QLabel(m_pTrack->getTitle(), this));
+    auto title = m_pTrack->getTitle();
+
+    const auto pBeats = m_pTrack->getBeats();
+
+    if (pBeats) {
+        const auto bpm = pBeats->getBpmInRange(
+                mixxx::audio::kStartFramePos,
+                mixxx::audio::FramePos(
+                        m_pTrack->getDuration() * pBeats->getSampleRate().value()));
+
+        if (bpm.isValid()) {
+            const auto tempoType = pBeats->hasConstantTempo()
+                    ? tr("Constant Tempo")
+                    : tr("Variable Tempo");
+
+            title += QStringLiteral(" — %1 BPM (%2)")
+                             .arg(bpm.value(), 0, 'f', 2)
+                             .arg(tempoType);
+        }
+    }
+
+    layout->addWidget(new QLabel(title, this));
 
     m_pTimeline = new WBeatmapTimeline(m_pTrack, this);
     layout->addWidget(m_pTimeline);

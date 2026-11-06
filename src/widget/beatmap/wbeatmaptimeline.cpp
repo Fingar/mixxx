@@ -8,6 +8,7 @@
 #include <cmath>
 #include <utility>
 
+#include "track/beats.h"
 #include "track/track.h"
 #include "waveform/waveform.h"
 
@@ -64,8 +65,9 @@ void WBeatmapTimeline::paintEvent(QPaintEvent* event) {
     // Timeline dimensions.
     constexpr auto rulerHeight = 40;
     const auto waveformTop = rulerHeight;
-    const auto waveformHeight = height() - waveformTop;
-    const auto waveformCenter = waveformTop + waveformHeight / 2.0;
+    const auto waveformAreaHeight = height() - waveformTop;
+    const auto waveformHeight = waveformAreaHeight * 0.75;
+    const auto waveformCenter = waveformTop + waveformAreaHeight / 2.0;
 
     // Draw the time ruler.
     const auto duration = m_pTrack->getDuration();
@@ -181,9 +183,9 @@ void WBeatmapTimeline::paintEvent(QPaintEvent* event) {
 
                 const auto color = maxBand > 0.0
                         ? QColor::fromRgbF(
-                                  lowSum / maxBand,
-                                  midSum / maxBand,
-                                  highSum / maxBand)
+                                  static_cast<float>(lowSum / maxBand),
+                                  static_cast<float>(midSum / maxBand),
+                                  static_cast<float>(highSum / maxBand))
                         : QColor(0, 0, 0);
 
                 const auto normalizedAmplitude = amplitude / 255.0;
@@ -195,12 +197,75 @@ void WBeatmapTimeline::paintEvent(QPaintEvent* event) {
                         QPointF(x, waveformCenter - halfHeight),
                         QPointF(x, waveformCenter + halfHeight));
             }
+
+
         }
     } else if (!pWaveform) {
         painter.setPen(Qt::white);
         painter.drawText(
             QPointF(10, waveformCenter),
             tr("Waveform not loaded"));
+    }
+
+    // Draw the pre-track pattern.
+    const auto trackStartX = -m_scrollSeconds * m_pixelsPerSecond;
+    const auto preTrackEndX = std::min(trackStartX, static_cast<double>(width()));
+
+    if (preTrackEndX > 0.0) {
+        painter.save();
+
+        painter.setClipRect(QRectF(
+                0, rulerHeight,
+                preTrackEndX,
+                height() - rulerHeight));
+
+        constexpr auto triangleSpacingSeconds = 0.5;
+        const auto triangleWidth = triangleSpacingSeconds * m_pixelsPerSecond;
+        const auto triangleHeight = waveformHeight * 0.3;
+
+        painter.setPen(QColor(180, 150, 115));
+        painter.setBrush(QColor(100, 80, 60, 100));
+
+        if (triangleWidth >= 8.0) {
+            for (auto time = -triangleSpacingSeconds; time >= visibleStart() - triangleSpacingSeconds;
+                    time -= triangleSpacingSeconds) {
+                const auto x = (time - m_scrollSeconds) * m_pixelsPerSecond;
+
+                QPolygonF triangle;
+                triangle << QPointF(x, waveformCenter - triangleHeight / 2.0)
+                         << QPointF(x + triangleWidth, waveformCenter)
+                         << QPointF(x, waveformCenter + triangleHeight / 2.0);
+
+                painter.drawPolygon(triangle);
+                    }
+        }
+
+        painter.restore();
+    }
+
+    // Draw analyzed beatgrid.
+    const auto pBeats = m_pTrack->getBeats();
+
+    if (pBeats) {
+        const auto sampleRate = pBeats->getSampleRate().value();
+
+        const auto startFrame =
+                mixxx::audio::FramePos(visibleStart() * sampleRate);
+        const auto endFrame =
+                mixxx::audio::FramePos(visibleEnd() * sampleRate);
+
+        painter.setPen(QColor(255, 255, 255, 75));
+
+        for (auto it = pBeats->iteratorFrom(startFrame);
+                it != pBeats->cend() && *it <= endFrame;
+                ++it) {
+            const auto seconds = it->value() / sampleRate;
+            const auto x = (seconds - m_scrollSeconds) * m_pixelsPerSecond;
+
+            painter.drawLine(
+                    QPointF(x, rulerHeight),
+                    QPointF(x, height()));
+                }
     }
 
     // Draw track boundaries.
